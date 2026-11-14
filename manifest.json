@@ -1,0 +1,48 @@
+{
+  "id": "com.svyatoslav.ai3d-forge",
+  "name": "AI3D Forge",
+  "version": "0.7.0",
+  "description": "Visual flow for the AI3D Forge pipeline: see every model's steps and results, run each step in an agent session, open interactive 3D views, chart models and ideas, and edit the module settings.",
+  "author": "Svyatoslav",
+  "main": "dist/index.js",
+  "styles": "dist/index.css",
+  "apiVersion": "1.0.0",
+  "permissions": {
+    "filesystem": true,
+    "ai": true
+  },
+  "contributions": {
+    "panels": [
+      {
+        "id": "forge",
+        "title": "AI3D Forge",
+        "icon": "view_in_ar",
+        "placement": "fullscreen",
+        "order": 60,
+        "tooltip": "AI3D Forge: model flow, step results, and agent runs."
+      }
+    ],
+    "configuration": {
+      "title": "AI3D Forge",
+      "properties": {
+        "modelsRoot": {
+          "type": "string",
+          "description": "Folder with the model directories, relative to the workspace. Empty = models_folder from _bmad/ai3d/config.yaml, else _bmad-output/ai3d.",
+          "default": "",
+          "scope": "workspace",
+          "order": 1
+        }
+      }
+    },
+    "settingsRoutes": [
+      {
+        "id": "ai3d",
+        "scope": "project",
+        "label": "AI3D Forge",
+        "icon": "view_in_ar",
+        "order": 60,
+        "component": "Ai3dSettings"
+      }
+    ]
+  }
+}
