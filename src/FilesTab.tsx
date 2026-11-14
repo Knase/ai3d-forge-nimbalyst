@@ -16,7 +16,7 @@ const DOC = /\.(md|json|txt|ya?ml)$/i;
 export function fileRows(m: Model, type: FileType): Row[] {
   const from = (folder: string, list: FileEntry[], test: RegExp) => list.filter((f) => test.test(f.name)).map((f) => ({ rel: `${folder}/${f.name}`, f }));
   if (type === 'images') return [...from('inbox', m.files.inbox, IMG), ...from('images', m.files.images, IMG), ...from('renders', m.files.renders, IMG), ...from('refs', m.files.refs, IMG)];
-  if (type === 'meshes') return [...from('mesh', m.files.mesh, MESH), ...from('print', m.files.print, /\.3mf$/i), ...from('mesh/attempts', m.attempts, MESH)];
+  if (type === 'meshes') return [...from('mesh', m.files.mesh, MESH), ...from('mesh/candidates', m.candidates ?? [], MESH), ...from('print', m.files.print, /\.3mf$/i), ...from('mesh/attempts', m.attempts, MESH)];
   const top: Row[] = [];
   if (m.concept) top.push({ rel: 'concept.md', f: { name: 'concept.md', size: m.concept.length, mtime: m.stamp } });
   if (m.hasReadme) top.push({ rel: 'README.md', f: { name: 'README.md', size: 0, mtime: m.stamp } });
@@ -25,7 +25,8 @@ export function fileRows(m: Model, type: FileType): Row[] {
 
 const day = (ts: number) => new Date(ts * 1000).toLocaleDateString([], { month: 'short', day: 'numeric' });
 
-function Listing({ host, model, type, rows, onZoom, onOpen, onReveal, onView, onConcept }: {
+function Listing({ host, model, type, rows, onZoom, onOpen, onReveal, onView, onConcept, onPromote }: {
+  onPromote?: (rel: string) => void;
   host: PanelHost; model: Model; type: FileType; rows: Row[];
   onZoom: (z: { path: string; mtime: number; name: string }) => void;
   onOpen: (m: Model, rel: string) => void;
@@ -64,11 +65,13 @@ function Listing({ host, model, type, rows, onZoom, onOpen, onReveal, onView, on
           <tr key={rel}>
             <td><span className="a3d-file-folder">{rel.slice(0, rel.lastIndexOf('/') + 1)}</span><strong>{f.name}</strong>
               {/^mesh\/print\.stl$/.test(rel) && <span className="a3d-pill a3d-pill-done">to print</span>}
-              {/^mesh\/raw\./.test(rel) && <span className="a3d-pill">as generated</span>}</td>
+              {/^mesh\/raw\./.test(rel) && <span className="a3d-pill">as generated</span>}
+              {rel.startsWith('mesh/candidates/') && <span className="a3d-pill">variant</span>}</td>
             <td className="a3d-num">{f.size ? fileSize(f.size) : ''}</td>
             <td className="a3d-num">{day(f.mtime)}</td>
             <td className="a3d-muted">{made.get(rel) ?? ''}</td>
             <td><span className="a3d-row a3d-row-end">
+              {onPromote && rel.startsWith('mesh/candidates/') && <button type="button" className="a3d-btn a3d-btn-small a3d-btn-primary" title="Copies it to mesh/raw.* (the previous raw mesh is kept in mesh/attempts/)" onClick={() => onPromote(rel)}>Use as raw mesh</button>}
               {onView && /\.stl$/i.test(f.name) && rel.startsWith('mesh/') && !rel.includes('attempts') && <button type="button" className="a3d-btn a3d-btn-small" onClick={() => onView(model)}>3D view</button>}
               <button type="button" className="a3d-btn a3d-btn-small" onClick={() => onOpen(model, rel)}>{type === 'docs' ? 'Open' : /\.(stl|3mf)$/i.test(f.name) ? 'Open in slicer' : 'Open in app'}</button>
               <button type="button" className="a3d-btn a3d-btn-small" onClick={() => onReveal(model, rel)}>Show in Finder</button>
@@ -80,7 +83,8 @@ function Listing({ host, model, type, rows, onZoom, onOpen, onReveal, onView, on
   );
 }
 
-export function FilesTab({ host, scan, model, nodeFilter, importing, onClearFilter, onSelectModel, onZoom, onOpen, onReveal, onView, onPick, onFiles, onConcept }: {
+export function FilesTab({ host, scan, model, nodeFilter, importing, onClearFilter, onSelectModel, onZoom, onOpen, onReveal, onView, onPick, onFiles, onConcept, onPromote }: {
+  onPromote: (rel: string) => void;
   onConcept: (path: string) => void;
   host: PanelHost;
   scan: Scan;
@@ -140,12 +144,12 @@ export function FilesTab({ host, scan, model, nodeFilter, importing, onClearFilt
             </span>
           </div>
           <p className="a3d-muted a3d-files-hint">
-            {importing ? 'Adding files…' : 'Or drop files here. Images go to inbox/, a GLB becomes mesh/raw.glb (the previous one is kept in mesh/attempts/), STL goes to mesh/, 3MF to print/.'}
+            {importing ? 'Adding files…' : 'Or drop files here. Images go to inbox/. One 3D file (GLB, STL, OBJ…) becomes mesh/raw.<ext>, the previous one is kept in mesh/attempts/. Several at once (the variants of one generation) go to mesh/candidates/ for you to choose. print.stl keeps its name, 3MF goes to print/. Files already added are skipped.'}
           </p>
           {node && (
             <p className="a3d-banner">Only the files of the attempt “{node.label}”.<button type="button" className="a3d-link" onClick={onClearFilter}>Show all files</button></p>
           )}
-          <Listing host={host} model={model} type={type} rows={rows} onZoom={onZoom} onOpen={onOpen} onReveal={onReveal} onView={onView} onConcept={onConcept} />
+          <Listing host={host} model={model} type={type} rows={rows} onZoom={onZoom} onOpen={onOpen} onReveal={onReveal} onView={onView} onConcept={onConcept} onPromote={onPromote} />
           <input ref={input} type="file" multiple hidden accept={(inputKind === 'image' ? IMAGE_EXT : MESH_EXT).map((e) => `.${e}`).join(',')}
             onChange={(e) => { const fs = Array.from(e.target.files ?? []); e.target.value = ''; if (fs.length) onFiles(fs); }} />
         </section>

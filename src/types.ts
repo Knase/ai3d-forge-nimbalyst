@@ -100,6 +100,8 @@ export interface Model {
   files: Record<Folder, FileEntry[]>;
   /** Earlier mesh / STL attempts kept in mesh/attempts/. */
   attempts: FileEntry[];
+  /** Variants of one 3D generation waiting for a choice (mesh/candidates/). */
+  candidates: FileEntry[];
   imagePrompt: { name: string; text: string | null } | null;
   prompt3d: string | null;
   analysis: Record<string, any> | null;

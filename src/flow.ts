@@ -51,6 +51,7 @@ export function buildSteps(m: Model, scan: Scan): StepView[] {
   const accepted = images(f.images);
   const renders = images(f.renders);
   const raw = f.mesh.find((x) => /^raw\./i.test(x.name));
+  const cands = (m.candidates ?? []).filter((x) => /\.(stl|glb|gltf|obj|fbx)$/i.test(x.name));
   const printStl = f.mesh.find((x) => x.name === 'print.stl') ?? f.mesh.find((x) => x.name === 'clean.stl');
   const flexi = m.meta.model_type === 'flexi';
   const after = m.analysis?.after ?? m.analysis?.analysis ?? null;
@@ -143,19 +144,22 @@ export function buildSteps(m: Model, scan: Scan): StepView[] {
   } else if (raw) {
     meshPrimary = agent('Review the mesh', 'ai3d-chisel', '*review-mesh');
     meshHint = 'Chisel checks the mesh against the concept and accepts it or changes the settings.';
+  } else if (cands.length) {
+    meshPrimary = agent('Compare the variants', 'ai3d-chisel', '*review-mesh');
+    meshHint = `${cands.length} variants are waiting in mesh/candidates/. Use one as the raw mesh (Files → 3D files → “Use as raw mesh”), or let Chisel compare them and recommend one.`;
   } else if (m.prompt3d) {
     meshPrimary = {
-      kind: 'human', label: 'Run the 3D service, save mesh/raw.glb',
+      kind: 'human', label: 'Run the 3D service, then Add 3D model…',
       copy: m.prompt3d, copyLabel: 'Copy 3D spec', folder: 'mesh',
     };
-    meshHint = 'Your turn: upload the accepted image to the 3D service and save the export as mesh/raw.glb.';
+    meshHint = 'Your turn: upload the accepted image to the 3D service and add the export with “Add 3D model…” (GLB or STL; if the service gives several variants, add them all and choose one).';
   } else {
     meshPrimary = agent('Write 3D spec', 'ai3d-chisel', '*3d-prompt');
     meshHint = 'Chisel writes the service settings for the accepted image.';
   }
   steps.push({
     id: 'mesh', title: '3D mesh', agent: 'Chisel',
-    result: raw ? `${raw.name} · ${kb(raw.size)}` : m.prompt3d ? '3D spec ready' : 'No mesh yet',
+    result: raw ? `${raw.name} · ${kb(raw.size)}` : cands.length ? `${cands.length} variants to choose from` : m.prompt3d ? '3D spec ready' : 'No mesh yet',
     hint: meshHint, thumb: null, primary: meshPrimary,
     more: [
       agent('Write 3D spec', 'ai3d-chisel', '*3d-prompt'),

@@ -6,6 +6,8 @@ export type ImportKind = 'image' | 'mesh' | 'view';
 export interface ImportResult {
   placed: { file: string; archived: string | null }[];
   skipped: { file: string; why: string }[];
+  /** Files that went to mesh/candidates/ (several 3D files at once). */
+  candidates?: string[];
 }
 
 export const IMAGE_EXT = ['png', 'jpg', 'jpeg', 'webp', 'gif'];
@@ -59,13 +61,18 @@ export async function upload(host: PanelHost, modelDir: string, file: File): Pro
   return tmp;
 }
 
-async function run(host: PanelHost, modelDir: string, kind: ImportKind, mode: 'copy' | 'move', paths: string[]): Promise<ImportResult> {
+async function run(host: PanelHost, modelDir: string, kind: ImportKind | 'promote', mode: 'copy' | 'move', paths: string[]): Promise<ImportResult> {
   const res = await host.exec(
     `python3 - ${sh(modelDir)} ${kind} ${mode} ${paths.map(sh).join(' ')} <<'A3D_IMPORT'\n${importSource}\nA3D_IMPORT`,
     { timeout: 120000 },
   );
   if (!res.success) throw new Error(res.stderr.trim().split('\n').pop() || 'import failed');
   return JSON.parse(res.stdout.trim().split('\n').pop() ?? '{}') as ImportResult;
+}
+
+/** Make one of the mesh/candidates/ files the raw mesh (mesh/raw.<ext>); the previous raw mesh is archived. */
+export function promoteCandidate(host: PanelHost, modelDir: string, rel: string) {
+  return run(host, modelDir, 'promote', 'copy', [rel]);
 }
 
 export function importPaths(host: PanelHost, modelDir: string, kind: ImportKind, paths: string[]) {
@@ -85,7 +92,8 @@ export async function importFiles(host: PanelHost, modelDir: string, kind: Impor
 
 export function describeImport(r: ImportResult) {
   const parts: string[] = [];
-  if (r.placed.length) parts.push(`Added ${r.placed.map((p) => p.file).join(', ')}.`);
+  if (r.candidates?.length) parts.push(`${r.candidates.length} 3D files saved in mesh/candidates/. Pick one with “Use as raw mesh” (Files → 3D files), or let Chisel compare them.`);
+  else if (r.placed.length) parts.push(`Added ${r.placed.map((p) => p.file).join(', ')}.`);
   const arch = r.placed.filter((p) => p.archived).map((p) => p.archived);
   if (arch.length) parts.push(`The previous file was kept as ${arch.join(', ')}.`);
   if (r.skipped.length) parts.push(`Skipped: ${r.skipped.map((s) => `${s.file} (${s.why})`).join('; ')}.`);

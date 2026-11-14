@@ -184,6 +184,7 @@ def work(d):
         "concept": text(os.path.join(d, "concept.md"), 4000),
         "files": files,
         "attempts": listing(os.path.join(d, "mesh", "attempts")),
+        "candidates": listing(os.path.join(d, "mesh", "candidates")),
         "imagePrompt": {"name": latest, "text": text(os.path.join(d, "prompts", latest))} if latest else None,
         "prompt3d": text(os.path.join(d, "prompts", "3d-prompt.md")) if has3d else None,
         "analysis": load_json(os.path.join(d, "print", "analysis.json")),

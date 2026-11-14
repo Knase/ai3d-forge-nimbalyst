@@ -25,6 +25,9 @@ the model has branches, a **Branch** switcher appears next to it; Flow, Files an
   instruction (saved as the attempt's description for commands that make an attempt), tips for the step, and the
   exact prompt that will be sent. **Tips** toggles the step's guide under the step header.
 - Every button has a tooltip with what it runs: the agent skill and command, or the shell command.
+- **v0.11.1:** Add 3D model… saves one file as `mesh/raw.<ext>` (STL too: it used to stay in `mesh/` and the mesh step
+  did not see it); several files at once go to `mesh/candidates/` with a **Use as raw mesh** button; identical files are
+  skipped; the mesh step says when variants are waiting. Needs module 2.2.1.
 - **v0.11:** idle outside AI3D projects. In a project without the module the panel shows one short screen and does
   nothing (no agents, no Blender check, one look a minute); **Turn off in this project** (also in Settings) stops even
   that, per project. The gutter icon itself is Nimbalyst's: disable the extension in its extension settings to remove

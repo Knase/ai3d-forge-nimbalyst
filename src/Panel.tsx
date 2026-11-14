@@ -11,7 +11,7 @@ import { settings } from './settings';
 import { BlenderBlock, BlenderChip, BlenderDialog, KilnDialog, type QuickRequest } from './BlenderTools';
 import { checkBlender, openInBlender, runKiln, summarize, type BlenderStatus, type KilnCommand, type KilnResult } from './blender';
 import { FilesTab } from './FilesTab';
-import { describeImport, importFiles, importPaths, kindOf, pickWithSystemDialog, upload, type ImportKind } from './importFiles';
+import { describeImport, importFiles, importPaths, kindOf, pickWithSystemDialog, promoteCandidate, upload, type ImportKind } from './importFiles';
 import { IdeasTab, type IdeaAction } from './IdeasTab';
 import { ModelsTab } from './ModelsTab';
 import { TrendsTab, type TrendAction } from './TrendsTab';
@@ -665,6 +665,10 @@ export function ForgePanel({ host }: PanelHostProps) {
     return true;
   }, [model, host, finishImport]);
 
+  const promote = useCallback((rel: string) => {
+    if (model) void finishImport(promoteCandidate(host, model.dir, rel));
+  }, [model, host, finishImport]);
+
   const addFiles = useCallback((files: File[]) => {
     if (!model) return;
     const groups: Record<ImportKind, File[]> = { image: [], mesh: [], view: [] };
@@ -1155,7 +1159,7 @@ export function ForgePanel({ host }: PanelHostProps) {
             onClearFilter={() => setFileNode(null)} onSelectModel={(s) => selectModel(s)}
             onZoom={setZoom} onOpen={openFileOf} onReveal={reveal}
             onView={() => void doAction({ kind: 'script', label: '3D view', script: 'view' }, null)}
-            onPick={pickFiles} onFiles={addFiles} onConcept={(p) => setNewModel({ pictures: [p] })} />
+            onPick={pickFiles} onFiles={addFiles} onPromote={promote} onConcept={(p) => setNewModel({ pictures: [p] })} />
         )}
         {tab === 'trends' && scan && (
           <TrendsTab host={host} scan={scan} busy={busy} selected={trendSel} onSelectTrend={setTrendSel}
