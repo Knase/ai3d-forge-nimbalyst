@@ -1,6 +1,7 @@
 import type { PanelHost } from '@nimbalyst/extension-sdk';
 import type { FlowNode, Model } from './types';
 import { Img } from './ui';
+import { dirOf, nodeBranch } from './branches';
 
 const IMG = /\.(png|jpe?g|webp|gif)$/i;
 
@@ -9,7 +10,7 @@ export function CompareView({ host, model, a, b, onClose, onSwap, onView3d, onOp
   host: PanelHost; model: Model; a: FlowNode; b: FlowNode;
   onClose: () => void; onSwap: () => void;
   onView3d: (n: FlowNode, stl: string) => void;
-  onOpen: (rel: string) => void;
+  onOpen: (rel: string, n: FlowNode) => void;
 }) {
   const keys = Array.from(new Set([...Object.keys(a.settings), ...Object.keys(b.settings)])).sort();
   const row = (label: string, va: string, vb: string) => (
@@ -20,10 +21,10 @@ export function CompareView({ host, model, a, b, onClose, onSwap, onView3d, onOp
     const stls = n.files.filter((f) => /\.stl$/i.test(f));
     return (
       <div className="a3d-cmp-side">
-        {pics.length > 0 && <div className="a3d-gallery">{pics.map((f) => <figure key={f}><Img host={host} path={`${model.dir}/${f}`} mtime={model.stamp} alt={f} /><figcaption>{f}</figcaption></figure>)}</div>}
+        {pics.length > 0 && <div className="a3d-gallery">{pics.map((f) => <figure key={f}><Img host={host} path={`${dirOf(model, n)}/${f}`} mtime={model.stamp} alt={f} /><figcaption>{f}</figcaption></figure>)}</div>}
         <p className="a3d-row">
           {stls.map((f) => <button key={f} type="button" className="a3d-btn a3d-btn-small" onClick={() => onView3d(n, f)}>3D: {f.split('/').pop()}</button>)}
-          {n.files.filter((f) => !IMG.test(f) && !/\.stl$/i.test(f)).map((f) => <button key={f} type="button" className="a3d-link" onClick={() => onOpen(f)}>{f}</button>)}
+          {n.files.filter((f) => !IMG.test(f) && !/\.stl$/i.test(f)).map((f) => <button key={f} type="button" className="a3d-link" onClick={() => onOpen(f, n)}>{f}</button>)}
         </p>
       </div>
     );
@@ -40,6 +41,7 @@ export function CompareView({ host, model, a, b, onClose, onSwap, onView3d, onOp
       <table className="a3d-filetable a3d-cmp-table">
         <thead><tr><th></th><th>A · {a.label}</th><th>B · {b.label}</th></tr></thead>
         <tbody>
+          {model.branches.length > 1 && row('Branch', nodeBranch(a), nodeBranch(b))}
           {row('Status', `${a.status}${a.verdict ? ` · ${a.verdict}` : ''}`, `${b.status}${b.verdict ? ` · ${b.verdict}` : ''}`)}
           {keys.map((k) => row(k, a.settings[k] ?? '', b.settings[k] ?? ''))}
           {row('Description', a.description, b.description)}

@@ -123,7 +123,7 @@ export function ModelsTab({ host, scan, stepsBySlug, selected, onSelect, onNew, 
                       onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); onSelectTrend(m.meta.origin.trend); } }}>
                       {scan.trends.find((t) => t.slug === m.meta.origin.trend)?.title ?? m.meta.origin.trend}</span></span>
                   )}
-                  <span className="a3d-muted a3d-card-counts">{pics} image{pics === 1 ? '' : 's'} · {meshes} 3D file{meshes === 1 ? '' : 's'} · {m.flow.nodes.length} attempt{m.flow.nodes.length === 1 ? '' : 's'}</span>
+                  <span className="a3d-muted a3d-card-counts">{pics} image{pics === 1 ? '' : 's'} · {meshes} 3D file{meshes === 1 ? '' : 's'} · {m.flow.nodes.length} attempt{m.flow.nodes.length === 1 ? '' : 's'}{(() => { const n = (m.branches ?? []).filter((b) => b.status !== 'archived').length; return n > 1 ? ` · ${n} branches` : ''; })()}</span>
                 </span>
               </button>
             </li>

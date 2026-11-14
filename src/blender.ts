@@ -37,10 +37,15 @@ export async function checkBlender(host: PanelHost, configured: string): Promise
   return JSON.parse(res.stdout.trim().split('\n').pop() ?? '{}') as BlenderStatus;
 }
 
+/** The shell command of one headless Kiln run (also shown in the panel's tooltips and Help). */
+export function kilnCommand(bin: string, kilnRun: string, cmd: KilnCommand, modelDir: string, opts: Record<string, string> = {}) {
+  const args = Object.entries(opts).filter(([, v]) => v !== '').map(([k, v]) => sh(`${k}=${v}`)).join(' ');
+  return `${sh(bin)} -b --factory-startup -P ${sh(kilnRun)} -- ${cmd} ${sh(modelDir)}${args ? ` ${args}` : ''}`;
+}
+
 /** One headless Kiln command in a background Blender. Never throws for a bad shape: read ok / problems. */
 export async function runKiln(host: PanelHost, bin: string, kilnRun: string, cmd: KilnCommand, modelDir: string, opts: Record<string, string>): Promise<KilnResult> {
-  const args = Object.entries(opts).filter(([, v]) => v !== '').map(([k, v]) => sh(`${k}=${v}`)).join(' ');
-  const res = await host.exec(`${sh(bin)} -b --factory-startup -P ${sh(kilnRun)} -- ${cmd} ${sh(modelDir)} ${args}`, { timeout: 900000, maxBuffer: 20_000_000 });
+  const res = await host.exec(kilnCommand(bin, kilnRun, cmd, modelDir, opts), { timeout: 900000, maxBuffer: 20_000_000 });
   const line = (res.stdout ?? '').split('\n').reverse().find((l) => l.startsWith('A3D_RESULT '));
   if (line) return JSON.parse(line.slice('A3D_RESULT '.length)) as KilnResult;
   const tail = `${res.stderr ?? ''}\n${res.stdout ?? ''}`.trim().split('\n').filter(Boolean).slice(-3).join(' · ');

@@ -1,3 +1,4 @@
+import { DEFAULT_EFFORT, DEFAULT_MODELS, EFFORTS, MODELS, RUN_TARGETS, mapString, parseMap } from './runSettings';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   BED_PRESETS, DEFAULTS, GROUPS, WEIGHT_DIMS, applyUpdates, bedString, parseBed, parseConfig, parseWeights, weightsString,
@@ -104,6 +105,28 @@ export function SettingsForm({ workspace, io, onSaved }: Props) {
         return (
           <label className="a3d-slider a3d-slider-angle"><input id={id} type="range" min={20} max={75} step={1} value={Number(v) || 45} onChange={(e) => set(f.key, e.target.value)} /><output>{v}°</output></label>
         );
+      case 'hidden':
+        return null;
+      case 'runs': {
+        const models = parseMap(values.step_models, DEFAULT_MODELS);
+        const efforts = parseMap(values.step_effort, DEFAULT_EFFORT);
+        return (
+          <table className="a3d-runs">
+            <thead><tr><th>Step / agent</th><th>Model</th><th>Reasoning</th></tr></thead>
+            <tbody>{RUN_TARGETS.map((t) => (
+              <tr key={t.id}>
+                <td>{t.label}</td>
+                <td><select aria-label={`Model for ${t.label}`} value={models[t.id] === 'default' ? '' : models[t.id] ?? ''} onChange={(e) => set('step_models', mapString({ ...models, [t.id]: e.target.value || 'default' }))}>
+                  {MODELS.map((m) => <option key={m.value} value={m.value.replace(/^claude-code:/, '')}>{m.label}</option>)}
+                </select></td>
+                <td><select aria-label={`Reasoning for ${t.label}`} value={efforts[t.id] ?? 'medium'} onChange={(e) => set('step_effort', mapString({ ...efforts, [t.id]: e.target.value }))}>
+                  {EFFORTS.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}
+                </select></td>
+              </tr>
+            ))}</tbody>
+          </table>
+        );
+      }
       case 'weights': {
         const w = parseWeights(v);
         return (
@@ -129,7 +152,7 @@ export function SettingsForm({ workspace, io, onSaved }: Props) {
       {GROUPS.map((g) => (
         <section key={g.title} className="a3d-set-group">
           <h3>{g.title}</h3>
-          {g.fields.map((f) => (
+          {g.fields.filter((f) => f.kind !== 'hidden').map((f) => (
             <div key={f.key} className="a3d-field">
               <label htmlFor={`a3d-set-${f.key}`}>{f.label}</label>
               <div className="a3d-field-control">{control(f)}</div>

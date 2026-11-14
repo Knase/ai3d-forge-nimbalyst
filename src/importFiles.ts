@@ -2,7 +2,7 @@ import type { PanelHost } from '@nimbalyst/extension-sdk';
 import importSource from './import.py?raw';
 import { isMac, sh } from './ui';
 
-export type ImportKind = 'image' | 'mesh';
+export type ImportKind = 'image' | 'mesh' | 'view';
 export interface ImportResult {
   placed: { file: string; archived: string | null }[];
   skipped: { file: string; why: string }[];
@@ -21,8 +21,8 @@ export const kindOf = (name: string): ImportKind | null => {
  */
 export async function pickWithSystemDialog(host: PanelHost, kind: ImportKind): Promise<string[] | null> {
   if (!isMac()) return null;
-  const types = (kind === 'image' ? IMAGE_EXT : MESH_EXT).map((e) => `"${e}"`).join(', ');
-  const prompt = kind === 'image' ? 'Choose the generated image(s)' : 'Choose the 3D file (GLB, STL, 3MF…)';
+  const types = (kind !== 'mesh' ? IMAGE_EXT : MESH_EXT).map((e) => `"${e}"`).join(', ');
+  const prompt = kind === 'image' ? 'Choose the generated image(s)' : kind === 'view' ? 'Choose the view images (front, left, back, right)' : 'Choose the 3D file (GLB, STL, 3MF…)';
   const script = [
     'tell application "Finder" to activate',
     `tell application "Finder" to set fs to choose file with prompt "${prompt}" of type {${types}} with multiple selections allowed`,

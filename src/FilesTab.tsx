@@ -25,12 +25,13 @@ export function fileRows(m: Model, type: FileType): Row[] {
 
 const day = (ts: number) => new Date(ts * 1000).toLocaleDateString([], { month: 'short', day: 'numeric' });
 
-function Listing({ host, model, type, rows, onZoom, onOpen, onReveal, onView }: {
+function Listing({ host, model, type, rows, onZoom, onOpen, onReveal, onView, onConcept }: {
   host: PanelHost; model: Model; type: FileType; rows: Row[];
   onZoom: (z: { path: string; mtime: number; name: string }) => void;
   onOpen: (m: Model, rel: string) => void;
   onReveal: (m: Model, rel: string) => void;
   onView?: (m: Model) => void;
+  onConcept?: (path: string) => void;
 }) {
   const made = new Map<string, string>();
   for (const n of model.flow.nodes) for (const f of n.files) made.set(f, n.label);
@@ -47,6 +48,7 @@ function Listing({ host, model, type, rows, onZoom, onOpen, onReveal, onView }: 
               <span className="a3d-fig-actions">
                 <span className="a3d-muted">{made.get(rel) ?? day(f.mtime)}</span>
                 <button type="button" className="a3d-link" onClick={() => onReveal(model, rel)}>Show in Finder</button>
+                {onConcept && <button type="button" className="a3d-link" title="Muse writes a concept from this picture: a new model, or a new branch of this one" onClick={() => onConcept(path)}>Concept from this…</button>}
               </span>
             </figure>
           );
@@ -78,7 +80,8 @@ function Listing({ host, model, type, rows, onZoom, onOpen, onReveal, onView }: 
   );
 }
 
-export function FilesTab({ host, scan, model, nodeFilter, importing, onClearFilter, onSelectModel, onZoom, onOpen, onReveal, onView, onPick, onFiles }: {
+export function FilesTab({ host, scan, model, nodeFilter, importing, onClearFilter, onSelectModel, onZoom, onOpen, onReveal, onView, onPick, onFiles, onConcept }: {
+  onConcept: (path: string) => void;
   host: PanelHost;
   scan: Scan;
   model: Model | null;
@@ -129,7 +132,7 @@ export function FilesTab({ host, scan, model, nodeFilter, importing, onClearFilt
           onDragOver={(e) => { e.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)}
           onDrop={(e) => { e.preventDefault(); setOver(false); const fs = Array.from(e.dataTransfer.files); if (fs.length) onFiles(fs); }}>
           <div className="a3d-files-bar">
-            <h3>{model.meta.title || model.slug}</h3>
+            <h3>{model.meta.title || model.slug}{model.branches?.length > 1 && <span className="a3d-muted" style={{ fontWeight: 400 }}> · branch {model.branches.find((b) => b.id === model.branch)?.name ?? model.branch}</span>}</h3>
             <span className="a3d-row">
               <button type="button" className="a3d-btn a3d-btn-primary" disabled={importing} onClick={() => void pick('image')}>Add image…</button>
               <button type="button" className="a3d-btn a3d-btn-primary" disabled={importing} onClick={() => void pick('mesh')}>Add 3D model…</button>
@@ -142,7 +145,7 @@ export function FilesTab({ host, scan, model, nodeFilter, importing, onClearFilt
           {node && (
             <p className="a3d-banner">Only the files of the attempt “{node.label}”.<button type="button" className="a3d-link" onClick={onClearFilter}>Show all files</button></p>
           )}
-          <Listing host={host} model={model} type={type} rows={rows} onZoom={onZoom} onOpen={onOpen} onReveal={onReveal} onView={onView} />
+          <Listing host={host} model={model} type={type} rows={rows} onZoom={onZoom} onOpen={onOpen} onReveal={onReveal} onView={onView} onConcept={onConcept} />
           <input ref={input} type="file" multiple hidden accept={(inputKind === 'image' ? IMAGE_EXT : MESH_EXT).map((e) => `.${e}`).join(',')}
             onChange={(e) => { const fs = Array.from(e.target.files ?? []); e.target.value = ''; if (fs.length) onFiles(fs); }} />
         </section>
@@ -158,7 +161,7 @@ export function FilesTab({ host, scan, model, nodeFilter, importing, onClearFilt
                 <span className="a3d-muted">{count(m, type)} {type === 'images' ? 'images' : type === 'meshes' ? '3D files' : 'documents'}</span>
                 <button type="button" className="a3d-btn a3d-btn-small" onClick={(e) => { e.preventDefault(); onSelectModel(m.slug); }}>Select</button>
               </summary>
-              <Listing host={host} model={m} type={type} rows={fileRows(m, type)} onZoom={onZoom} onOpen={onOpen} onReveal={onReveal} />
+              <Listing host={host} model={m} type={type} rows={fileRows(m, type)} onZoom={onZoom} onOpen={onOpen} onReveal={onReveal} onConcept={onConcept} />
             </details>
           ))}
         </section>

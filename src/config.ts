@@ -1,5 +1,5 @@
 /** AI3D Forge module settings: the single source of truth is `_bmad/ai3d/config.yaml`. */
-export type FieldKind = 'select' | 'toggle' | 'text' | 'bed' | 'angle' | 'weights';
+export type FieldKind = 'select' | 'toggle' | 'text' | 'bed' | 'angle' | 'weights' | 'runs' | 'hidden';
 
 export interface Field {
   key: string;
@@ -47,6 +47,15 @@ export const GROUPS: { title: string; fields: Field[] }[] = [
     fields: [
       { key: 'bed_mm', label: 'Bed size (mm)', help: 'X × Y × Z. The 3D view checks every model against it.', kind: 'bed', def: '256x256x256' },
       { key: 'overhang_deg', label: 'Overhang angle', help: 'Faces steeper than this from vertical need support. Used by the 3D view; Kiln has its own parameter.', kind: 'angle', def: '45' },
+    ],
+  },
+  {
+    title: 'Agent runs',
+    fields: [
+      { key: 'step_models', label: 'Model and reasoning per step', help: 'Which Claude model runs each step and how much it thinks first. Run command… and New attempt… can change it for one run. Effort is passed as a thinking keyword in the prompt (think / think hard / ultrathink).', kind: 'runs',
+        def: 'concept=opus,image=sonnet,mesh=sonnet,blender=sonnet,validate=sonnet,print=haiku,publish=haiku,scout=opus,ideas=opus,help=haiku' },
+      { key: 'step_effort', label: 'Reasoning per step', help: '', kind: 'hidden',
+        def: 'concept=high,image=medium,mesh=medium,blender=high,validate=medium,print=low,publish=low,scout=high,ideas=high,help=low' },
     ],
   },
   {

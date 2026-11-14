@@ -1,6 +1,6 @@
 """Place files the user picked into the right folder of a model. Run by the Nimbalyst panel:
     python3 - <model dir> <image|mesh> <move|copy> <source path>...   (source on stdin)
-Images go to inbox/. Meshes: .glb/.gltf/.obj/.fbx become mesh/raw.<ext> (the previous raw.* is archived to
+Images go to inbox/ (kind view: inbox/views/). Meshes: .glb/.gltf/.obj/.fbx become mesh/raw.<ext> (the previous raw.* is archived to
 mesh/attempts/), .stl goes to mesh/, .3mf goes to print/. Nothing is overwritten. Prints one JSON document."""
 import json
 import os
@@ -40,11 +40,12 @@ for src in sources:
     base = os.path.basename(src)
     ext = os.path.splitext(base)[1].lower()
     archived = None
-    if kind == "image":
+    if kind in ("image", "view"):
         if ext not in IMG:
             skipped.append({"file": base, "why": "not an image (png, jpg, webp, gif)"})
             continue
-        folder, name = "inbox", None
+        # views for multi-view 3D wait in inbox/views/ for Lumen *review-views
+        folder, name = ("inbox/views" if kind == "view" else "inbox"), None
     elif ext in RAW:
         folder, name = "mesh", "raw" + ext
         mesh_dir = os.path.join(model, "mesh")

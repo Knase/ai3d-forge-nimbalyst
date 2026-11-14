@@ -1,4 +1,5 @@
 import type { FileEntry, FlowNode, Model, Scan } from './types';
+import type { Effort } from './runSettings';
 
 /** What a step button does. */
 export type Action =
@@ -66,6 +67,12 @@ export function buildSteps(m: Model, scan: Scan): StepView[] {
   const printSkipped = !lastTest && m.printLog.some((e) => e.skipped);
   const printDone = !!st.print_test?.done || m.printLog.length > 0;
   const done = [conceptDone, imageDone, meshDone, blenderDone, validateDone, printDone, publishDone];
+  // views for multi-view 3D that were asked for, or wait for review, hold the image step until the mesh exists
+  if (!raw && (images(m.viewsInbox ?? []).length || (m.viewsPrompt && !images(m.views ?? []).length))) done[1] = false;
+  // a branch copied every step before the one it starts at from its parent branch: those count as done here
+  const own = m.branch && m.branch !== 'main' ? m.branches?.find((b) => b.id === m.branch) : null;
+  const inherited = own ? Math.max(0, ['concept', 'image', 'mesh', 'blender', 'validate', 'print', 'publish'].indexOf(own.from_step)) : 0;
+  for (let i = 0; i < inherited; i++) done[i] = true;
   const firstOpen = done.indexOf(false);
 
   const steps: Omit<StepView, 'state' | 'n'>[] = [];
@@ -83,9 +90,22 @@ export function buildSteps(m: Model, scan: Scan): StepView[] {
   // 2 Image
   let imgPrimary: Action | null;
   let imgHint: string;
-  if (imageDone) {
+  const views = images(m.views ?? []);
+  const viewsWaiting = images(m.viewsInbox ?? []);
+  const viewsAsked = !!m.viewsPrompt && !views.length && !viewsWaiting.length && !raw;
+  if (imageDone && viewsAsked) {
+    imgPrimary = {
+      kind: 'human', label: 'Generate the views in Gemini, save them into inbox/views/',
+      copy: m.viewsPrompt?.text ?? '', copyLabel: `Copy ${m.viewsPrompt?.name}`, folder: 'inbox/views',
+    };
+    imgHint = `Your turn: run each view prompt of ${m.viewsPrompt?.name} in Gemini with the accepted image attached; save front.png, left.png, back.png, right.png into inbox/views/.`;
+  } else if (imageDone && viewsWaiting.length > 0) {
+    imgPrimary = agent(`Review ${viewsWaiting.length} view${viewsWaiting.length === 1 ? '' : 's'}`, 'ai3d-lumen', '*review-views');
+    imgHint = 'Lumen checks the views against the accepted image (same proportions, colours, pose) and files them as front / left / back / right.';
+  } else if (imageDone) {
     imgPrimary = null;
-    imgHint = `${accepted.length} image${accepted.length === 1 ? '' : 's'} accepted.`;
+    imgHint = `${accepted.length} image${accepted.length === 1 ? '' : 's'} accepted.${views.length ? ` ${views.length} views for multi-view 3D.`
+      : ' Optional: prepare front / left / back / right views for multi-view 3D (Other actions → Prepare views).'}`;
   } else if (inbox.length > 0) {
     imgPrimary = agent(`Review ${inbox.length} image${inbox.length === 1 ? '' : 's'} in inbox`, 'ai3d-lumen', '*review');
     imgHint = 'Lumen reads the inbox images and either accepts one or writes the next prompt.';
@@ -101,7 +121,7 @@ export function buildSteps(m: Model, scan: Scan): StepView[] {
   }
   steps.push({
     id: 'image', title: 'Image', agent: 'Lumen',
-    result: imageDone ? `${accepted.length} accepted` : inbox.length ? `${inbox.length} in inbox` : m.imagePrompt ? `${m.imagePrompt.name} ready` : 'No prompt yet',
+    result: imageDone ? `${accepted.length} accepted${views.length ? ` · ${views.length} views` : ''}` : inbox.length ? `${inbox.length} in inbox` : m.imagePrompt ? `${m.imagePrompt.name} ready` : 'No prompt yet',
     hint: imgHint,
     thumb: accepted[0] ? `images/${accepted[0].name}` : inbox[0] ? `inbox/${inbox[0].name}` : null,
     primary: imgPrimary,
@@ -109,6 +129,8 @@ export function buildSteps(m: Model, scan: Scan): StepView[] {
       agent('Write next prompt', 'ai3d-lumen', '*prompt'),
       agent('Review inbox', 'ai3d-lumen', '*review'),
       agent('Accept image', 'ai3d-lumen', '*accept'),
+      agent('Prepare views for 3D (front, left, back, right)', 'ai3d-lumen', '*views'),
+      agent('Review the views', 'ai3d-lumen', '*review-views'),
     ],
   });
 
@@ -233,7 +255,7 @@ const act = (label: string, skill: string, trigger: string): AgentAction => ({ k
 
 /** Agent actions that start a new attempt, that is, a new node in the model's flow graph. */
 const ATTEMPT_TRIGGERS = new Set([
-  'ai3d-muse *concept', 'ai3d-lumen *prompt', 'ai3d-chisel *3d-prompt',
+  'ai3d-muse *concept', 'ai3d-lumen *prompt', 'ai3d-lumen *views', 'ai3d-chisel *3d-prompt',
   'ai3d-kiln *optimize', 'ai3d-kiln *flexi', 'ai3d-anvil *validate', 'ai3d-herald *readme',
 ]);
 export const isAttempt = (a: Action): a is AgentAction => a.kind === 'agent' && ATTEMPT_TRIGGERS.has(`${a.skill} ${a.trigger}`);
@@ -241,7 +263,7 @@ export const isAttempt = (a: Action): a is AgentAction => a.kind === 'agent' && 
 /** What "New attempt" can run on each step. */
 export const ATTEMPT_CHOICES: Record<string, AgentAction[]> = {
   concept: [act('Write concept', 'ai3d-muse', '*concept')],
-  image: [act('Write image prompt', 'ai3d-lumen', '*prompt')],
+  image: [act('Write image prompt', 'ai3d-lumen', '*prompt'), act('Prepare views for 3D', 'ai3d-lumen', '*views')],
   mesh: [act('Write 3D spec', 'ai3d-chisel', '*3d-prompt')],
   blender: [act('Optimize in Blender', 'ai3d-kiln', '*optimize'), act('Build flexi joints', 'ai3d-kiln', '*flexi')],
   validate: [act('Validate and write slicing notes', 'ai3d-anvil', '*validate')],
@@ -265,11 +287,21 @@ export interface AttemptInfo {
 }
 
 /** The prompt sent to the agent session for one action. */
-export function agentPrompt(a: Extract<Action, { kind: 'agent' }>, m: Model | null, scan: Scan, input?: string, attempt?: AttemptInfo) {
+export function agentPrompt(a: Extract<Action, { kind: 'agent' }>, m: Model | null, scan: Scan, input?: string, attempt?: AttemptInfo, effort?: Effort) {
   const rel = scan.root.startsWith(scan.workspace) ? scan.root.slice(scan.workspace.length + 1) || '.' : scan.root;
   const lines = [`Use the \`${a.skill}\` skill from the AI3D Forge BMAD module and run its \`${a.trigger}\` action.`];
-  if (m) lines.push(`Model: \`${m.slug}\` — directory \`${rel}/${m.slug}/\`. Work only on this model.`);
-  else lines.push(`Models folder: \`${rel}/\`.`);
+  const ws = (p: string) => (p.startsWith(scan.workspace) ? p.slice(scan.workspace.length + 1) || '.' : p);
+  if (m) {
+    lines.push(`Model: \`${m.slug}\` — model folder \`${ws(m.rootDir ?? `${scan.root}/${m.slug}`)}/\`. Work only on this model.`);
+    if (m.migrated || m.branches?.length > 1) {
+      const b = m.branches.find((x) => x.id === m.branch);
+      lines.push(`Branch: \`${m.branch}\`${b && b.name !== m.branch ? ` (${b.name})` : ''}. Work folder: \`${ws(m.dir)}/\` — read and write every step file`
+        + ' (concept.md, metadata.json, prompts/, inbox/, images/, mesh/, print/, renders/, publish/, README.md) in this folder, not in the model folder.'
+        + ' flow.json stays in the model folder; flow_log.py accepts the work folder and records the branch.');
+      if (b?.source) lines.push(`This branch started from a ${b.source.kind}: ${b.source.kind === 'text' ? 'see refs/source.md' : b.source.ref}${b.source.kind === 'link' ? ' (also in refs/source.md)' : ''}.`);
+      if (b?.description) lines.push(`Why this branch: ${b.description}`);
+    }
+  } else lines.push(`Models folder: \`${rel}/\`.`);
   if (input) lines.push(`Input from the user: ${input}`);
   if (attempt && m) {
     const n = attempt.node;
@@ -283,5 +315,8 @@ export function agentPrompt(a: Extract<Action, { kind: 'agent' }>, m: Model | nu
   }
   if (a.extra) lines.push(a.extra);
   lines.push('Follow the skill\'s HALT rules: stop and ask me whenever a verdict or an off-tool step is needed.');
+  if (effort === 'medium') lines.push('Think about the options before you act.');
+  if (effort === 'high') lines.push('Think hard: weigh the options and check the numbers before you act.');
+  if (effort === 'max') lines.push('Ultrathink: this step needs your deepest reasoning before you act.');
   return lines.join('\n');
 }

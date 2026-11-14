@@ -1,7 +1,7 @@
 {
   "id": "com.svyatoslav.ai3d-forge",
   "name": "AI3D Forge",
-  "version": "0.7.0",
+  "version": "0.11.0",
   "description": "Visual flow for the AI3D Forge pipeline: see every model's steps and results, run each step in an agent session, open interactive 3D views, chart models and ideas, and edit the module settings.",
   "author": "Svyatoslav",
   "main": "dist/index.js",

@@ -77,7 +77,8 @@ def flow_graph(d):
     if _flow_mod:
         try:
             g = _flow_mod.graph(d)
-            return {"nodes": g["nodes"], "real": g["real"]}
+            return {"nodes": g["nodes"], "real": g["real"], "branches": g.get("branches"), "primary": g.get("primary"),
+                    "migrated": g.get("migrated")}
         except Exception:
             pass
     doc = load_json(os.path.join(d, "flow.json")) or {}
@@ -156,10 +157,17 @@ def read_config():
     return out
 
 
-def model(root, slug):
-    d = os.path.join(root, slug)
+def views_prompt(d, prompts):
+    """The latest prompts/views-vN.md (multi-view prompts for 3D), or None."""
+    vs = sorted((int(m.group(1)), f["name"]) for f in prompts for m in [re.match(r"views-v(\d+)\.md$", f["name"])] if m)
+    if not vs:
+        return None
+    return {"name": vs[-1][1], "text": text(os.path.join(d, "prompts", vs[-1][1]))}
+
+
+def work(d):
+    """What one work folder holds: a branch folder, or the model folder of a model without branches/."""
     files = {s: listing(os.path.join(d, s)) for s in SUBS}
-    attempts = listing(os.path.join(d, "mesh", "attempts"))
     versions = []
     for f in files["prompts"]:
         m = re.match(r"image-v(\d+)\.md$", f["name"])
@@ -167,27 +175,102 @@ def model(root, slug):
             versions.append((int(m.group(1)), f["name"]))
     latest = max(versions)[1] if versions else None
     has3d = any(f["name"] == "3d-prompt.md" for f in files["prompts"])
-    readme = os.path.join(d, "README.md")
     stamp = max([f["mtime"] for s in SUBS for f in files[s]] +
-                [int(os.stat(os.path.join(d, n)).st_mtime) for n in ("metadata.json", "concept.md", "README.md", "flow.json")
+                [int(os.stat(os.path.join(d, n)).st_mtime) for n in ("metadata.json", "concept.md", "README.md")
                  if os.path.isfile(os.path.join(d, n))] + [0])
     return {
-        "slug": slug,
         "dir": d,
         "meta": load_json(os.path.join(d, "metadata.json")) or {},
         "concept": text(os.path.join(d, "concept.md"), 4000),
         "files": files,
-        "attempts": attempts,
+        "attempts": listing(os.path.join(d, "mesh", "attempts")),
         "imagePrompt": {"name": latest, "text": text(os.path.join(d, "prompts", latest))} if latest else None,
         "prompt3d": text(os.path.join(d, "prompts", "3d-prompt.md")) if has3d else None,
         "analysis": load_json(os.path.join(d, "print", "analysis.json")),
         "printLog": load_json(os.path.join(d, "print", "print-log.json")) or [],
         "printPhotos": listing(os.path.join(d, "print", "photos")),
-        "hasReadme": os.path.isfile(readme),
+        "hasReadme": os.path.isfile(os.path.join(d, "README.md")),
         "view": view_info(d, files),
-        "flow": flow_graph(d),
+        "source": text(os.path.join(d, "refs", "source.md"), 2000),
+        "views": listing(os.path.join(d, "images", "views")),
+        "viewsPrompt": views_prompt(d, files["prompts"]),
+        "viewsInbox": listing(os.path.join(d, "inbox", "views")),
         "stamp": stamp,
     }
+
+
+def model(root, slug):
+    d = os.path.join(root, slug)
+    flow = flow_graph(d)
+    brs = flow.get("branches") or [{"id": "main", "name": "main", "dir": d, "exists": True, "primary": True, "status": "open"}]
+    primary = flow.get("primary") or "main"
+    views = []
+    for b in brs:
+        bd = b.get("dir") or d
+        w = work(bd) if os.path.isdir(bd) else work(d)
+        views.append({**{k: v for k, v in b.items() if k != "dir"}, "work": w})
+    head = next((v["work"] for v in views if v["id"] == primary), views[0]["work"])
+    root_meta = load_json(os.path.join(d, "metadata.json")) or {}
+    out = dict(head)
+    # the model card: the model folder's metadata, with the primary branch's progress on top
+    out["meta"] = {**head["meta"], **{k: v for k, v in root_meta.items() if k in ("title", "slug", "origin", "summary", "tags", "created_at")}}
+    out.update({
+        "slug": slug,
+        "rootDir": d,
+        "branch": primary,
+        "primary": primary,
+        "migrated": bool(flow.get("migrated")),
+        "branches": views,
+        "flow": {"nodes": flow["nodes"], "real": flow["real"]},
+        "stamp": max([v["work"]["stamp"] for v in views] + [int(os.stat(os.path.join(d, "flow.json")).st_mtime) if os.path.isfile(os.path.join(d, "flow.json")) else 0]),
+    })
+    return out
+
+
+def vkey(v):
+    return tuple(int(x) for x in re.findall(r"\d+", v or "")[:3]) or (0,)
+
+
+def module_info():
+    """Installed AI3D Forge version (from BMAD's manifest), where it was installed from, and a newer copy of the
+    module lying next to that source, if there is one (so the panel can print the exact update command)."""
+    info = {"version": None, "source": None, "newer": None}
+    man = os.path.join(ws, "_bmad", "_config", "manifest.yaml")
+    if os.path.isfile(man):
+        block = None
+        for line in open(man, encoding="utf-8", errors="replace"):
+            m = re.match(r"\s*-\s*name:\s*(\S+)", line)
+            if m:
+                block = m.group(1)
+                continue
+            if block == "ai3d":
+                m = re.match(r"\s*(version|localPath):\s*\"?([^\"\n]+)\"?", line)
+                if m:
+                    info["source" if m.group(1) == "localPath" else "version"] = m.group(2).strip()
+    src = info["source"]
+    folders = [os.path.dirname(src)] if src else []
+    folders += [os.path.join(ws, "_modules"), ws]
+    best = None
+    for folder in folders:
+        if not os.path.isdir(folder):
+            continue
+        for name in sorted(os.listdir(folder)):
+            my = os.path.join(folder, name, "skills", "ai3d-setup", "assets", "module.yaml")
+            if not os.path.isfile(my) or not os.path.isfile(os.path.join(folder, name, ".claude-plugin", "marketplace.json")):
+                continue
+            m = re.search(r"^version:\s*(\S+)", open(my, encoding="utf-8", errors="replace").read(), re.M)
+            if m and (best is None or vkey(m.group(1)) > vkey(best["version"])):
+                best = {"version": m.group(1), "path": os.path.join(folder, name)}
+    if best and vkey(best["version"]) > vkey(info["version"]):
+        info["newer"] = best
+    return info
+
+
+def has_text(path, needle):
+    try:
+        return needle in open(path, encoding="utf-8", errors="replace").read()
+    except (OSError, TypeError):
+        return False
 
 
 root = models_root()
@@ -201,6 +284,8 @@ result = {
     "rootExists": os.path.isdir(root),
     "installed": os.path.isfile(os.path.join(ws, "_bmad", "ai3d", "config.yaml")),
     "tools": {
+        "stepTips": find_tool("ai3d-help/references/step-tips.md"),
+        "helpStatus": find_tool("ai3d-help/scripts/status.py"),
         "buildReadme": find_tool("ai3d-herald/scripts/build-readme.py"),
         "kilnLib": find_tool("ai3d-kiln/scripts/kiln_lib.py"),
         "buildViewer": find_tool("ai3d-prism/scripts/build-viewer.py"),
@@ -212,6 +297,8 @@ result = {
         "printLog": find_tool("ai3d-anvil/scripts/print_log.py"),
     },
     "config": cfg_values,
+    "python": "%d.%d.%d" % sys.version_info[:3],
+    "module": module_info(),
     "trendsRoot": trends_dir,
     "ideasRoot": insights_dir,
     "trends": ti["trends"],
@@ -226,6 +313,13 @@ if result["rootExists"]:
     for name in sorted(os.listdir(root)):
         if name.startswith(("_", ".")) or not os.path.isdir(os.path.join(root, name)):
             continue
-        if os.path.isfile(os.path.join(root, name, "metadata.json")) or os.path.isfile(os.path.join(root, name, "concept.md")):
+        if any(os.path.exists(os.path.join(root, name, f)) for f in ("metadata.json", "concept.md", "branches")):
             result["models"].append(model(root, name))
+t = result["tools"]
+result["features"] = {
+    "branches": has_text(t.get("flowLog"), "def branch_add"),
+    "webRefs": has_text(t.get("trendLib"), "def add_ref"),
+    "help": bool(t.get("helpStatus")),
+    "views": bool(find_tool("ai3d-lumen/references/multiview.md")),
+}
 print(json.dumps(result))

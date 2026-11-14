@@ -1,15 +1,47 @@
 # AI3D Forge — Nimbalyst extension
 
-A fullscreen panel that shows every model as a six-step flow, with the result of each step, and runs each
-step's agent in a Nimbalyst session.
+A fullscreen panel that shows every model as a seven-step flow, with the result of each step, and runs each
+step's agent in a Nimbalyst session. Version 0.8.0 (module 2.0.0).
 
 ```
-Concept → Image → 3D mesh → Blender → Validate → Publish
- Muse     Lumen    Chisel    Kiln      Anvil      Herald
+Concept → Image → 3D mesh → Blender → Validate → Test print → Publish
+ Muse     Lumen    Chisel    Kiln      Anvil      Anvil / you   Herald
 ```
 
 ## What you see
-The selected model is the context: the **Model** switcher in the tab bar sets it, and Flow and Files follow it.
+The selected model is the context: the **Model** switcher in the tab bar sets it, and Flow and Files follow it. When
+the model has branches, a **Branch** switcher appears next to it; Flow, Files and every button work in that branch.
+
+- **Branches** (v0.8): one column per branch in the graph (click its header to work in it; ★ is the primary).
+  **+ New branch…** above the graph and **New branch from here…** on any attempt: start with another image (accepted
+  or into inbox/ for review), a link, a 3D file, a brief, or the same inputs; pick where it grows from and its first
+  step. Every step before it is copied from the parent branch; from there the branch has its own files to the end.
+  **Make primary ★**, **Mark as variant** (own README and listing), **Archive branch**, **Branch folder**. A model
+  from before branches shows "move them now" (`flow_log.py migrate-branches`); the first new branch does it anyway.
+- **Help** tab (v0.8): where the selected model and branch stand and the next move with what its button runs; your
+  turn across models; **Status of all models** (`status.py`, no agent); **Ask Compass** (`ai3d-help` agent); the step
+  guide with optimisation tips; the table of every button and the exact command it runs (filterable).
+- **Run command…** on each step (v0.8, also ⋯ next to the main button): any agent command of the step, your own
+  instruction (saved as the attempt's description for commands that make an attempt), tips for the step, and the
+  exact prompt that will be sent. **Tips** toggles the step's guide under the step header.
+- Every button has a tooltip with what it runs: the agent skill and command, or the shell command.
+- **v0.11:** idle outside AI3D projects. In a project without the module the panel shows one short screen and does
+  nothing (no agents, no Blender check, one look a minute); **Turn off in this project** (also in Settings) stops even
+  that, per project. The gutter icon itself is Nimbalyst's: disable the extension in its extension settings to remove
+  it everywhere.
+- **v0.10:** a warning with the exact update command when the project's skills are older than the panel; Help →
+  **Setup check** (Python, skills version, config keys, folders, Blender, Blender MCP, Apify) with the fix for each
+  line; headings and branch colours follow the host's dark theme.
+- **v0.9:** *New attempt* asks first what should be different (with ready phrases), then shows the step's options as
+  real controls (“agent decides” unless you choose); where it continues from, model, reasoning, an own option and the
+  prompt are under More. *Insights* shows an idea as four stages (Prepare, Score, Decide, Model) with Create model
+  available at any stage, and a References block: Find on the web (Muse), Add link, Add picture. *New model…* and
+  *Concept from this…* on any picture in Files make a concept from pictures, a link and words, as a new model or a
+  branch. Several agent runs can be in flight at once: “N running” in the tab bar lists them (show session / forget).
+- **Model and reasoning** (v0.8): each step shows which model and reasoning its agent runs use; Run command… and New
+  attempt… have Model and Reasoning pickers for one run; Settings → Agent runs sets the defaults per step.
+- **Views** (v0.8): Image → Other actions → Prepare views (Lumen `*views`), then **Add views…** puts the pictures in
+  `inbox/views/`, Review views files them in `images/views/`; both galleries show on the Image step.
 - **Models**: a **Waiting for you** list (every model whose next move is yours, with what to do), three views:
   Cards, **Board** (one column per step, where each model stands) and Portfolio. One card per model (preview, type, status, current step, counts of images / 3D files / attempts,
   "your turn" or "running"). Click a card to select it and open its Flow. New model, Scout and Portfolio are here.
@@ -58,8 +90,8 @@ The selected model is the context: the **Model** switcher in the tab bar sets it
   into `print/photos/`) or Skip; the log, photos and earlier prints are shown in the step.
 - **Notifications**: a message in the panel when an agent run ends, and a system notification when the panel is
   hidden (Commands → Turn notifications on/off).
-- **Keyboard**: 1–6 tabs · Alt+↑/↓ previous / next model · in Flow: G graph or steps, N new attempt, A / R accept or
-  reject the selected attempt · Cmd/Ctrl+K commands.
+- **Keyboard**: 1–7 tabs · Alt+↑/↓ previous / next model · in Flow: G graph or steps, N new attempt, B new branch,
+  C run command on the step, T tips, A / R accept or reject the selected attempt · Cmd/Ctrl+K commands.
 
 ## How a step moves
 - **Run** starts a new Nimbalyst session with the right skill, action and model already in the prompt.
@@ -106,6 +138,10 @@ extension's `modelsRoot` setting.
 - v0.7: board, waiting list, compare (with 3D views of archived STLs), notes, cost, archive, the test print log with a
   photo, and the keyboard shortcuts were driven the same way. System notifications (`Notification` in the Nimbalyst
   window): **unverified**.
+- v0.8: branches (create from an image file and from an attempt with the same inputs, lanes, switcher, promote,
+  variant), Run command… with the prompt preview, Tips, the Help tab with the real `status.py`, and the migration were
+  driven the same way; the scripts' self-tests cover branches, migration and status. The system file dialog in New
+  branch (Choose…) is the same `osascript` call as Add image: **unverified on a Mac**.
 - **Not run inside Nimbalyst.** These depend on host behaviour read from its source, not observed:
   - whether a dropped file exposes its path (if not, the panel uploads the bytes through the shell, slow for large meshes);
   - the Insights iframe (`srcDoc`, `sandbox="allow-scripts"`) and the `settingsRoutes` Settings page;
