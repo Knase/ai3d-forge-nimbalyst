@@ -2,6 +2,8 @@
   "name": "ai3d-forge-nimbalyst",
   "version": "0.11.0",
   "private": true,
+  "license": "MIT",
+  "author": "Svyatoslav Ischenko",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
